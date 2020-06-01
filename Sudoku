@@ -1,0 +1,207 @@
+import pygame
+import time
+import Solver
+import os
+os.environ['SDL_VIDEO_CENTERED'] = '1'
+pygame.init()
+class grid:
+	board = [
+    [7, 8, 0, 4, 0, 0, 1, 2, 0],
+    [6, 0, 0, 0, 7, 5, 0, 0, 9],
+    [0, 0, 0, 6, 0, 1, 0, 7, 8],
+    [0, 0, 7, 0, 4, 0, 2, 6, 0],
+    [0, 0, 1, 0, 5, 0, 9, 3, 0],
+    [9, 0, 4, 0, 6, 0, 0, 0, 5],
+    [0, 7, 0, 3, 0, 0, 0, 1, 2],
+    [1, 2, 0, 0, 0, 7, 4, 0, 0],
+    [0, 4, 9, 2, 0, 6, 0, 0, 7]
+    ]
+
+	def __init__(self,row,col,height,width):
+		self.row = row
+		self.col = col
+		self.height = height
+		self.width = width
+		self.shell = [[shell(i,j,self.height,self.width,self.board[i][j])for j in range(self.row)]for i in range(self.row)]
+		# self.model = [[shell(i,j,self.height,self.width,self.board[i][j])for j in range(self.row)]for i in range(self.row)]
+		self.model = None
+		self.selected = None
+
+	def draw(self,win):
+		for i in range(self.row):
+			shell_x = int(self.width//9)
+			if i%3 == 0 and i != 0:
+				pygame.draw.line(win,(0,0,0),(shell_x*i,0),(shell_x*i,self.height),4)
+				pygame.draw.line(win,(0,0,0),(0,shell_x*i),(self.width,shell_x*i),4)
+			pygame.draw.line(win,(0,0,0),(shell_x*i,0),(shell_x*i,self.height))
+			pygame.draw.line(win,(0,0,0),(0,shell_x*i),(self.width,shell_x*i))
+
+		pygame.draw.line(win,(0,0,0),(0,self.height),(self.width,self.height),4)
+
+		for i in range(self.row):
+			for j in range(self.row):
+				self.shell[i][j].draw(win,self.row)
+
+	def place(self,value):
+		row,col = self.selected
+		self.shell[row][col].set_val(value)
+		self.update_model()
+		
+		if Solver.is_valid(self.model,row,col,value) and Solver.solver(self.model):
+			print(Solver.is_valid(self.model,row,col,value) and Solver.solver(self.model))
+		else:
+			print("in place/else")
+			self.shell[row][col].set_val(0)
+			self.shell[row][col].set_temp(0)
+			self.update_model()
+
+
+	def update_model(self):
+		self.model = [[self.shell[i][j].val for j in range(self.col)] for i in range(self.row)]
+		
+	def valid_click(self,pos):
+		gap = self.height//self.row
+		y,x = int(pos[0]//gap),int(pos[1]//gap)
+		if x<= 8 and y <= 8:
+			self.selected = (x,y)
+			return (x,y)
+		return False
+
+	def select_pos(self,win):
+		gap = self.height // self.row
+		pos = self.selected
+		# time.sleep(2)
+		pygame.draw.rect(win,(222,0,0),(pos[1]*gap,pos[0]*gap,gap,gap),3)
+		pygame.display.update()
+		
+	def input_temp(self,key):
+		row,col = self.selected
+		for i in range(self.row):
+			for j in range(self.col):
+				self.shell[i][j].selected = False
+		self.shell[row][col].selected = True
+		self.shell[row][col].set_temp(key)
+
+# each shell of the cube is also treated as an object 		
+class shell:
+	def __init__(self,row,col,height,width,val):
+		self.row = row
+		self.col = col
+		self.height = height
+		self.width = width
+		self.val = val
+		self.temp = 0
+		self.selected = False
+    
+	def draw(self,win,rows):
+		gap = self.height//rows
+		y,x = self.row*gap,self.col*gap
+		if not self.val == 0:
+			my_font = pygame.font.SysFont('comicsans',40)
+			text = my_font.render(str(self.val),1,(0,0,0))
+			win.blit(text,((x+(gap/2-text.get_width()/2)),(y+(gap/2-text.get_height()/2))))
+		
+		if self.temp != 0 and self.val == 0:
+			print_msg(win,"comicsans",str(self.temp),(96,96,96),(x+5,y+5))
+
+		# if self.temp! = 0 and self.val! = 0:
+		# 	my_font = pygame.font.SysFont('comicsans',40)
+		# 	text = my_font.render(str(self.val),1,(0,0,0))
+		# 	win.blit(text,((x+(gap/2-text.get_width()/2)),(y+(gap/2-text.get_height()/2))))
+		
+	def set_temp(self,value):
+		self.temp = value
+
+	def set_val(self,value):
+		self.val = value
+
+	def __str__(self):
+		return self.val
+
+
+def print_msg(win,font_family,msg,color,pos):
+	my_font = pygame.font.SysFont(font_family,40)
+	text = my_font.render(msg,1,color)
+	win.blit(text,pos)
+
+def redraw_win(win,board,time,screen_h,screen_w):
+	win.fill((255,255,255))
+	board.draw(win)
+	my_font = pygame.font.SysFont("comicsanssms",50)
+	text = my_font.render(time,1,(0,0,0))
+	win.blit(text,((screen_w-text.get_width()-80),(screen_h-text.get_height()-15)))
+
+	pygame.display.update()
+
+def format_time(sec):
+	secs = sec%60
+	minute = secs//60
+	hour = minute//60
+	clock = str(hour)+":"+str(minute)+":"+str(sec)
+	return clock
+
+def main_loop():
+	win = pygame.display.set_mode((540,600))
+	pygame.display.set_caption("Sudoku")
+	run = True
+	clicked,key = None,None
+	board = grid(9,9,540,540)
+	start = time.time()
+	while run:
+		play_time = round(time.time()-start)
+		disp_time = format_time(play_time)
+		redraw_win(win,board,disp_time,600,600)
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				run = False
+
+			if event.type == pygame.MOUSEBUTTONDOWN:
+				pos = pygame.mouse.get_pos()
+				clicked = board.valid_click(pos)
+				if board.valid_click(pos):
+					key = 0
+
+			if event.type == pygame.KEYDOWN:
+				if event.key == pygame.K_1:
+					key = 1 
+          
+				if event.key == pygame.K_2:
+					key = 2 
+          
+				if event.key == pygame.K_3:
+					key = 3
+          
+				if event.key == pygame.K_4:
+					key = 4
+          
+				if event.key == pygame.K_5:
+					key = 5
+          
+				if event.key == pygame.K_6:
+					key = 6
+          
+				if event.key == pygame.K_7:
+					key = 7
+          
+				if event.key == pygame.K_8:
+					key = 8
+          
+				if event.key == pygame.K_9:
+					key = 9
+          
+				if event.key == pygame.K_RETURN:
+					row,col = board.selected
+					if board.shell[row][col].temp != 0:
+						board.place(board.shell[row][col].temp)
+
+
+		if clicked:
+			board.select_pos(win)
+			if key != 0:
+				board.input_temp(key)
+
+		
+		
+		pygame.display.flip()
+
+main_loop()
